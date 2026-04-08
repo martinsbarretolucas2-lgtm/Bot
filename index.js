@@ -1,7 +1,7 @@
 const express = require('express');
 const app = express();
 const port = process.env.PORT || 3000;
-app.get('/', (req, res) => res.send('Bot Premium Online!'));
+app.get('/', (req, res) => res.send('Bot Online!'));
 app.listen(port, () => console.log(`Servidor na porta ${port}`));
 
 const { 
@@ -30,100 +30,87 @@ const CONFIG = {
 };
 
 client.once('ready', () => {
-    console.log(`✅ ${client.user.tag} operando com novos comandos!`);
-    
+    console.log(`🤖 Bot online: ${client.user.tag}`);
     client.application.commands.set([
-        { name: 'setup-ticket', description: 'Envia o painel de tickets com menu' },
-        { name: 'ping', description: 'Verifica a latência do bot' },
-        { name: 'limpar', description: 'Deleta mensagens', options: [{ name: 'qtd', type: 4, description: 'Quantidade', required: true }] },
-        { name: 'userinfo', description: 'Informações de um usuário', options: [{ name: 'user', type: 6, description: 'Usuário', required: true }] },
-        { name: 'anunciar', description: 'Faz um anúncio em Embed', options: [
-            { name: 'canal', type: 7, description: 'Canal do anúncio', required: true },
-            { name: 'titulo', type: 3, description: 'Título', required: true },
-            { name: 'texto', type: 3, description: 'Mensagem', required: true }
-        ]},
-        { name: 'ban', description: 'Bane um usuário', options: [{ name: 'user', type: 6, description: 'Usuário', required: true }, { name: 'motivo', type: 3, description: 'Motivo' }] },
-        { name: 'kick', description: 'Expulsa um usuário', options: [{ name: 'user', type: 6, description: 'Usuário', required: true }] }
+        { name: 'setup-ticket', description: 'Envia o painel de tickets' },
+        { name: 'limpar', description: 'Limpa o chat', options: [{ name: 'qtd', type: 4, description: 'Quantidade', required: true }] }
     ]);
 });
 
 client.on('interactionCreate', async interaction => {
-    if (interaction.isChatInputCommand()) {
-        const { commandName, options, guild, channel } = interaction;
+    // Comando Setup
+    if (interaction.isChatInputCommand() && interaction.commandName === 'setup-ticket') {
+        const embed = new EmbedBuilder()
+            .setTitle("🎫 Central de Atendimento")
+            .setDescription("Selecione o motivo do contato no menu abaixo:")
+            .setColor("#5865F2");
 
-        // --- PING ---
-        if (commandName === 'ping') {
-            return interaction.reply(`🏓 Pong! Latência: **${client.ws.ping}ms**`);
-        }
+        const menu = new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId('menu_ticket')
+                .setPlaceholder('Escolha uma categoria...')
+                .addOptions([
+                    { label: 'Dúvidas / Geral', value: 'geral', emoji: '💡' },
+                    { label: 'Financeiro', value: 'financeiro', emoji: '💸' },
+                    { label: 'Denúncias', value: 'denuncia', emoji: '🚫' },
+                ])
+        );
 
-        // --- USER INFO ---
-        if (commandName === 'userinfo') {
-            const alvo = options.getMember('user');
-            const embed = new EmbedBuilder()
-                .setTitle(`Info de ${alvo.user.username}`)
-                .setThumbnail(alvo.user.displayAvatarURL())
-                .addFields(
-                    { name: 'ID', value: alvo.id, inline: true },
-                    { name: 'Entrou no Servidor', value: `<t:${Math.floor(alvo.joinedTimestamp / 1000)}:R>`, inline: true },
-                    { name: 'Cargos', value: alvo.roles.cache.map(r => r).join(' ').replace('@everyone', '') || 'Nenhum' }
-                )
-                .setColor("Random");
-            return interaction.reply({ embeds: [embed] });
-        }
-
-        // --- ANUNCIAR ---
-        if (commandName === 'anunciar') {
-            if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) return interaction.reply("Sem permissão.");
-            const canalAlvo = options.getChannel('canal');
-            const embed = new EmbedBuilder()
-                .setTitle(options.getString('titulo'))
-                .setDescription(options.getString('texto'))
-                .setColor("Blue")
-                .setFooter({ text: `Anúncio por: ${interaction.user.tag}` });
-            await canalAlvo.send({ embeds: [embed] });
-            return interaction.reply({ content: "Anúncio enviado!", ephemeral: true });
-        }
-
-        // --- BAN / KICK ---
-        if (commandName === 'ban') {
-            if (!interaction.member.permissions.has(PermissionFlagsBits.BanMembers)) return interaction.reply("Sem permissão.");
-            const alvo = options.getUser('user');
-            const motivo = options.getString('motivo') || "Não informado";
-            await guild.members.ban(alvo, { reason: motivo });
-            return interaction.reply(`🔨 ${alvo.tag} foi banido. Motivo: ${motivo}`);
-        }
-
-        // --- SETUP TICKET (COM DROPDOWN) ---
-        if (commandName === 'setup-ticket') {
-            const embed = new EmbedBuilder()
-                .setTitle("🎟️ Suporte Especializado")
-                .setDescription("Selecione a categoria do seu atendimento abaixo:")
-                .setColor("#2f3136");
-
-            const menu = new ActionRowBuilder().addComponents(
-                new StringSelectMenuBuilder()
-                    .setCustomId('menu_ticket')
-                    .setPlaceholder('Escolha uma opção...')
-                    .addOptions([
-                        { label: 'Dúvidas / Geral', value: 'geral', emoji: '💡' },
-                        { label: 'Financeiro / Compras', value: 'financeiro', emoji: '💸' },
-                        { label: 'Denúncias', value: 'denuncia', emoji: '🚫' },
-                    ])
-            );
-
-            return interaction.reply({ embeds: [embed], components: [menu] });
-        }
+        return interaction.reply({ embeds: [embed], components: [menu] });
     }
 
-    // --- LÓGICA DO MENU DE SELEÇÃO ---
-    if (interaction.isStringSelectMenu()) {
-        if (interaction.customId === 'menu_ticket') {
-            const categoria = interaction.values[0];
-            // Aqui você usa a mesma lógica do 'abrir_ticket' que fizemos antes
-            // Mas pode mudar o nome do canal baseado na categoria escolhida!
-            await interaction.reply({ content: `Iniciando seu ticket de **${categoria}**...`, ephemeral: true });
-            
-            // Reutilize a função de criar canal aqui...
+    // Lógica do Menu (AQUI ESTAVA O ERRO)
+    if (interaction.isStringSelectMenu() && interaction.customId === 'menu_ticket') {
+        const categoria = interaction.values[0];
+        const { guild, user } = interaction;
+
+        // Anti-Spam: Verifica se já tem ticket
+        const ticketAtivo = await db.get(`user_${user.id}_ticket`);
+        if (ticketAtivo && guild.channels.cache.has(ticketAtivo)) {
+            return interaction.reply({ content: `❌ Você já tem um ticket em <#${ticketAtivo}>`, ephemeral: true });
+        }
+
+        await interaction.reply({ content: `Criando seu ticket de **${categoria}**...`, ephemeral: true });
+
+        // CRIAÇÃO REAL DO CANAL
+        const canal = await guild.channels.create({
+            name: `${categoria}-${user.username}`,
+            type: ChannelType.GuildText,
+            parent: CONFIG.ID_CATEGORIA_TICKETS,
+            permissionOverwrites: [
+                { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+                { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+                { id: CONFIG.ID_CARGO_STAFF, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+            ],
+        });
+
+        await db.set(`user_${user.id}_ticket`, canal.id);
+
+        const embedTicket = new EmbedBuilder()
+            .setTitle(`Atendimento: ${categoria.toUpperCase()}`)
+            .setDescription(`Olá ${user}, aguarde um momento. Um <@&${CONFIG.ID_CARGO_STAFF}> virá te ajudar.`)
+            .setColor("Green");
+
+        const botoes = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('claim').setLabel('Assumir').setStyle(ButtonStyle.Success).setEmoji('🙋‍♂️'),
+            new ButtonBuilder().setCustomId('close').setLabel('Fechar').setStyle(ButtonStyle.Danger).setEmoji('🔒')
+        );
+
+        await canal.send({ content: `${user} | <@&${CONFIG.ID_CARGO_STAFF}>`, embeds: [embedTicket], components: [botoes] });
+    }
+
+    // Lógica dos Botões (Fechar/Assumir)
+    if (interaction.isButton()) {
+        const { customId, channel, user } = interaction;
+
+        if (customId === 'claim') {
+            await interaction.reply({ content: `✅ Este ticket agora está sendo atendido por ${user}` });
+        }
+
+        if (customId === 'close') {
+            await interaction.reply("🔒 Fechando canal em 5 segundos...");
+            // Opcional: deletar do banco de dados aqui para o usuário poder abrir outro
+            setTimeout(() => channel.delete().catch(() => {}), 5000);
         }
     }
 });
