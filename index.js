@@ -1,12 +1,8 @@
 const express = require('express');
 const app = express();
-
-// Servidor Web para o Render não desligar
 const port = process.env.PORT || 3000;
-app.get('/', (req, res) => res.send('Bot de Tickets Online!'));
-app.listen(port, () => {
-    console.log(`Servidor rodando na porta ${port}`);
-});
+app.get('/', (req, res) => res.send('Bot de Tickets Profissional Online!'));
+app.listen(port, () => console.log(`Servidor na porta ${port}`));
 
 const { 
     Client, GatewayIntentBits, Partials, EmbedBuilder, 
@@ -21,46 +17,46 @@ const client = new Client({
     partials: [Partials.Channel]
 });
 
-// --- CONFIGURAÇÃO ---
 const CONFIG = {
-    TOKEN: process.env.TOKEN, // Segurança: Puxa das variáveis do Render
+    TOKEN: process.env.TOKEN,
     ID_CATEGORIA_TICKETS: "1487944633899286538",
     ID_CARGO_STAFF: "1491553558405840898",
     ID_CANAL_LOGS: "1491553429288521758"
 };
 
 client.once('ready', () => {
-    console.log(`🤖 Bot online como ${client.user.tag}`);
+    console.log(`🤖 Bot online: ${client.user.tag}`);
     client.application.commands.create({
         name: 'setup-ticket',
-        description: 'Envia o painel inicial de tickets',
+        description: 'Envia o painel de tickets',
     });
 });
 
 client.on('interactionCreate', async interaction => {
-    if (interaction.isChatInputCommand()) {
-        if (interaction.commandName === 'setup-ticket') {
-            const embed = new EmbedBuilder()
-                .setTitle("Central de Suporte")
-                .setDescription("Clique no botão abaixo para abrir um ticket de atendimento.")
-                .setColor(0x2f3136);
+    if (interaction.isChatInputCommand() && interaction.commandName === 'setup-ticket') {
+        const embed = new EmbedBuilder()
+            .setTitle("🎫 Central de Atendimento")
+            .setDescription("Precisa de ajuda? Clique no botão abaixo.\n\n*Atenção: Spam de tickets resulta em punição!*")
+            .setColor("#5865F2");
 
-            const botao = new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setCustomId('abrir_ticket')
-                    .setLabel('Abrir Ticket')
-                    .setEmoji('🎫')
-                    .setStyle(ButtonStyle.Primary)
-            );
+        const btn = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('abrir_ticket').setLabel('Abrir Ticket').setStyle(ButtonStyle.Primary).setEmoji('📩')
+        );
 
-            await interaction.reply({ embeds: [embed], components: [botao] });
-        }
+        return interaction.reply({ embeds: [embed], components: [btn] });
     }
 
     if (interaction.isButton()) {
         const { customId, guild, user, channel } = interaction;
 
+        // --- FUNÇÃO: ABRIR TICKET (COM ANTI-SPAM) ---
         if (customId === 'abrir_ticket') {
+            // Verifica se o usuário já tem um ticket no banco de dados
+            const ticketAtivo = await db.get(`user_${user.id}_ticket`);
+            if (ticketAtivo && guild.channels.cache.has(ticketAtivo)) {
+                return interaction.reply({ content: `❌ Você já possui um ticket aberto em <#${ticketAtivo}>!`, ephemeral: true });
+            }
+
             await interaction.deferReply({ ephemeral: true });
 
             const canal = await guild.channels.create({
@@ -69,38 +65,25 @@ client.on('interactionCreate', async interaction => {
                 parent: CONFIG.ID_CATEGORIA_TICKETS,
                 permissionOverwrites: [
                     { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
-                    { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles] },
+                    { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
                     { id: CONFIG.ID_CARGO_STAFF, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
                 ],
             });
 
-            const embedStaff = new EmbedBuilder()
-                .setTitle("Novo Ticket")
-                .setDescription(`Usuário: ${user}\nAguarde um staff assumir.`)
-                .setColor("Blue");
+            // Salva no banco que este usuário abriu um ticket
+            await db.set(`user_${user.id}_ticket`, canal.id);
 
-            const botoesStaff = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('assumir_ticket').setLabel('Assumir').setEmoji('🙋‍♂️').setStyle(ButtonStyle.Success),
-                new ButtonBuilder().setCustomId('fechar_ticket').setLabel('Fechar').setEmoji('🔒').setStyle(ButtonStyle.Danger)
+            const staffEmbed = new EmbedBuilder()
+                .setTitle("🛠️ Painel de Controle")
+                .setDescription(`Ticket aberto por: ${user}\n\n**Aguarde um membro da equipe.**`)
+                .setColor("#2ECC71");
+
+            const botoes = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('claim').setLabel('Assumir').setStyle(ButtonStyle.Success).setEmoji('🙋‍♂️'),
+                new ButtonBuilder().setCustomId('close').setLabel('Fechar').setStyle(ButtonStyle.Danger).setEmoji('🔒')
             );
 
-            await canal.send({ content: `<@&${CONFIG.ID_CARGO_STAFF}>`, embeds: [embedStaff], components: [botoesStaff] });
-            await interaction.editReply(`Ticket criado: ${canal}`);
-        }
-
-        if (customId === 'assumir_ticket') {
-            const jaAssumido = await db.get(`ticket_${channel.id}_staff`);
-            if (jaAssumido) return interaction.reply({ content: "Já assumido!", ephemeral: true });
-
-            await db.set(`ticket_${channel.id}_staff`, user.id);
-            await interaction.reply({ content: `${user} assumiu este ticket.` });
-        }
-
-        if (customId === 'fechar_ticket') {
-            await interaction.reply("Fechando em 5 segundos...");
-            setTimeout(() => channel.delete(), 5000);
-        }
-    }
-});
-
-client.login(CONFIG.TOKEN);
+            await canal.send({ content: `${user} | <@&${CONFIG.ID_CARGO_STAFF}>`, embeds: [staffEmbed], components: [botoes] });
+            
+            // LOG DE ABERTURA
+            const logChan = guild.channels.cache.get(
