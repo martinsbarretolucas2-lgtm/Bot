@@ -86,4 +86,39 @@ client.on('interactionCreate', async interaction => {
             await canal.send({ content: `${user} | <@&${CONFIG.ID_CARGO_STAFF}>`, embeds: [staffEmbed], components: [botoes] });
             
             // LOG DE ABERTURA
-            const logChan = guild.channels.cache.get(
+            const logChan = guild.channels.cache.get(CONFIG.ID_CANAL_LOGS);
+            if (logChan) logChan.send(`✅ **Ticket Aberto:** ${user.tag} (${user.id}) | Canal: ${canal.name}`);
+
+            return interaction.editReply(`Seu ticket foi criado: ${canal}`);
+        }
+
+        // --- FUNÇÃO: ASSUMIR (CLAIM) ---
+        if (customId === 'claim') {
+            const responsavel = await db.get(`ticket_${channel.id}_staff`);
+            if (responsavel) return interaction.reply({ content: `Este ticket já está sendo atendido por <@${responsavel}>`, ephemeral: true });
+
+            await db.set(`ticket_${channel.id}_staff`, user.id);
+            
+            // LOG DE ASSUMIR
+            const logChan = guild.channels.cache.get(CONFIG.ID_CANAL_LOGS);
+            if (logChan) logChan.send(`👤 **Ticket Assumido:** ${user.tag} assumiu o ticket de <#${channel.id}>`);
+
+            return interaction.reply({ content: `O moderador ${user} agora é o responsável por este ticket!` });
+        }
+
+        // --- FUNÇÃO: FECHAR ---
+        if (customId === 'close') {
+            await interaction.reply("🔒 Este ticket será fechado e o histórico registrado.");
+            
+            // Remove o ticket do banco de dados do usuário para ele poder abrir outro
+            // (Busca quem era o dono pelo nome do canal ou metadados)
+            const logChan = guild.channels.cache.get(CONFIG.ID_CANAL_LOGS);
+            if (logChan) logChan.send(`🔒 **Ticket Fechado:** Canal #${channel.name} fechado por ${user.tag}`);
+
+            // Pequeno delay para o pessoal ler o aviso
+            setTimeout(() => channel.delete().catch(() => {}), 5000);
+        }
+    }
+});
+
+client.login(CONFIG.TOKEN);
