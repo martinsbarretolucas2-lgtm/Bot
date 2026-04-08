@@ -1,12 +1,11 @@
 const express = require('express');
 const app = express();
 
-app.get('/', (req, res) => {
-  res.send('Bot de Tickets está online!');
-});
-
-app.listen(3000, () => {
-  console.log('Servidor web de suporte iniciado.');
+// Servidor Web para o Render não desligar
+const port = process.env.PORT || 3000;
+app.get('/', (req, res) => res.send('Bot de Tickets Online!'));
+app.listen(port, () => {
+    console.log(`Servidor rodando na porta ${port}`);
 });
 
 const { 
@@ -24,7 +23,7 @@ const client = new Client({
 
 // --- CONFIGURAÇÃO ---
 const CONFIG = {
-    TOKEN: "MTQ5MTQ0NTQ1MzgzMTUzNjkxMg.GMX7DJ.qVzdSPixKg3Mlts2LYdyGtYr5yWRPtMYJCDmDk",
+    TOKEN: process.env.TOKEN, // Segurança: Puxa das variáveis do Render
     ID_CATEGORIA_TICKETS: "1487944633899286538",
     ID_CARGO_STAFF: "1491553558405840898",
     ID_CANAL_LOGS: "1491553429288521758"
@@ -32,7 +31,6 @@ const CONFIG = {
 
 client.once('ready', () => {
     console.log(`🤖 Bot online como ${client.user.tag}`);
-    // Registro simples de comando slash (apenas para teste, use um command handler em produção)
     client.application.commands.create({
         name: 'setup-ticket',
         description: 'Envia o painel inicial de tickets',
@@ -62,13 +60,11 @@ client.on('interactionCreate', async interaction => {
     if (interaction.isButton()) {
         const { customId, guild, user, channel } = interaction;
 
-        // --- LÓGICA: ABRIR TICKET ---
         if (customId === 'abrir_ticket') {
             await interaction.deferReply({ ephemeral: true });
 
-            const canalNome = `ticket-${user.username}`;
             const canal = await guild.channels.create({
-                name: canalNome,
+                name: `ticket-${user.username}`,
                 type: ChannelType.GuildText,
                 parent: CONFIG.ID_CATEGORIA_TICKETS,
                 permissionOverwrites: [
@@ -79,8 +75,8 @@ client.on('interactionCreate', async interaction => {
             });
 
             const embedStaff = new EmbedBuilder()
-                .setTitle("Novo Ticket Aberto")
-                .setDescription(`Usuário: ${user}\nAguarde um membro da equipe assumir este ticket.`)
+                .setTitle("Novo Ticket")
+                .setDescription(`Usuário: ${user}\nAguarde um staff assumir.`)
                 .setColor("Blue");
 
             const botoesStaff = new ActionRowBuilder().addComponents(
@@ -89,57 +85,22 @@ client.on('interactionCreate', async interaction => {
             );
 
             await canal.send({ content: `<@&${CONFIG.ID_CARGO_STAFF}>`, embeds: [embedStaff], components: [botoesStaff] });
-            await interaction.editReply(`Ticket criado com sucesso: ${canal}`);
-            
-            // Log de Abertura
-            sendLog(guild, "Ticket Aberto", `Dono: ${user.tag}\nCanal: ${canal.name}`);
+            await interaction.editReply(`Ticket criado: ${canal}`);
         }
 
-        // --- LÓGICA: ASSUMIR TICKET ---
         if (customId === 'assumir_ticket') {
-            const staffId = await db.get(`ticket_${channel.id}_staff`);
-            if (staffId) return interaction.reply({ content: "Este ticket já foi assumido!", ephemeral: true });
+            const jaAssumido = await db.get(`ticket_${channel.id}_staff`);
+            if (jaAssumido) return interaction.reply({ content: "Já assumido!", ephemeral: true });
 
             await db.set(`ticket_${channel.id}_staff`, user.id);
-
-            // Ajusta permissões para que apenas o Staff que clicou e o Dono vejam
-            await channel.permissionOverwrites.set([
-                { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
-                { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-                // Mantemos o dono (precisamos buscar o ID salvo ou via nome do canal se não usar DB para isso)
-            ]);
-
-            await interaction.reply({ content: `O moderador ${user} assumiu este atendimento.`, ephemeral: false });
-            
-            // Log de Assunção
-            sendLog(guild, "Ticket Assumido", `Moderador: ${user.tag}\nCanal: ${channel.name}`);
+            await interaction.reply({ content: `${user} assumiu este ticket.` });
         }
 
-        // --- LÓGICA: FECHAR TICKET ---
         if (customId === 'fechar_ticket') {
-            await interaction.reply("O ticket será fechado em 5 segundos...");
-            
-            setTimeout(async () => {
-                sendLog(guild, "Ticket Fechado", `Fechado por: ${user.tag}\nCanal: ${channel.name}`);
-                await channel.delete();
-                await db.delete(`ticket_${channel.id}_staff`);
-            }, 5000);
+            await interaction.reply("Fechando em 5 segundos...");
+            setTimeout(() => channel.delete(), 5000);
         }
     }
 });
-
-// Função Auxiliar de Logs
-function sendLog(guild, titulo, desc) {
-    const logChannel = guild.channels.cache.get(CONFIG.ID_CANAL_LOGS);
-    if (!logChannel) return;
-
-    const logEmbed = new EmbedBuilder()
-        .setTitle(titulo)
-        .setDescription(desc)
-        .setTimestamp()
-        .setColor("Orange");
-
-    logChannel.send({ embeds: [logEmbed] });
-}
 
 client.login(CONFIG.TOKEN);
