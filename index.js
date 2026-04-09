@@ -1,18 +1,19 @@
-const cors = require('cors'); // Você precisará dar 'npm install cors'
+const express = require('express');
+const cors = require('cors');
+const app = express();
+
 app.use(cors());
 
-// Rota para pegar estatísticas do servidor para o seu site
-app.get('/api/stats', (req, res) => {
+// Rota para o seu site (GitHub Pages) buscar dados
+app.get('/status', (req, res) => {
     res.json({
         membros: client.guilds.cache.reduce((a, g) => a + g.memberCount, 0),
-        ticketsAbertos: client.channels.cache.filter(c => c.name.startsWith('ticket-')).size,
-        status: "Online"
+        ping: client.ws.ping,
+        online: true
     });
 });
 
-const express = require('express');
-const app = express();
-app.get('/', (req, res) => res.send('Bot Premium com Transcript Online!'));
+app.get('/', (req, res) => res.send('Bot Premium Online!'));
 app.listen(process.env.PORT || 3000);
 
 const { 
@@ -41,7 +42,7 @@ const CONFIG = {
 };
 
 client.once('ready', () => {
-    console.log(`🚀 Sistema de Logs e Transcripts Ativo em ${client.user.tag}`);
+    console.log(`🚀 Bot e API Online: ${client.user.tag}`);
     client.application.commands.set([
         { name: 'setup-ticket', description: 'Envia o painel de tickets' },
         { name: 'limpar', description: 'Limpa o chat', options: [{ name: 'qtd', type: 4, description: 'Quantidade', required: true }] }
@@ -51,18 +52,16 @@ client.once('ready', () => {
 client.on('interactionCreate', async interaction => {
     const { guild, user, channel, customId } = interaction;
 
-    // --- SETUP TICKET ---
     if (interaction.isChatInputCommand() && interaction.commandName === 'setup-ticket') {
         const embed = new EmbedBuilder()
             .setTitle("🎫 Central de Suporte")
-            .setDescription("Selecione uma categoria abaixo para iniciar o atendimento.")
-            .setColor("#5865F2")
-            .setFooter({ text: guild.name, iconURL: guild.iconURL() });
+            .setDescription("Selecione uma categoria abaixo no menu:")
+            .setColor("#5865F2");
 
         const menu = new ActionRowBuilder().addComponents(
             new StringSelectMenuBuilder()
                 .setCustomId('menu_ticket')
-                .setPlaceholder('Escolha o motivo do contato...')
+                .setPlaceholder('Escolha o motivo...')
                 .addOptions([
                     { label: 'Dúvidas', value: 'duvidas', emoji: '💡' },
                     { label: 'Financeiro', value: 'financeiro', emoji: '💸' },
@@ -72,13 +71,12 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ embeds: [embed], components: [menu] });
     }
 
-    // --- ABRIR TICKET (Lógica com Botão de Ir ao Ticket) ---
     if (interaction.isStringSelectMenu() && customId === 'menu_ticket') {
         const categoria = interaction.values[0];
         
         const ticketAtivo = await db.get(`user_${user.id}_ticket`);
         if (ticketAtivo && guild.channels.cache.has(ticketAtivo)) {
-            return interaction.reply({ content: `❌ Você já possui um ticket: <#${ticketAtivo}>`, ephemeral: true });
+            return interaction.reply({ content: `❌ Você já tem um ticket: <#${ticketAtivo}>`, ephemeral: true });
         }
 
         const canal = await guild.channels.create({
@@ -94,81 +92,54 @@ client.on('interactionCreate', async interaction => {
 
         await db.set(`user_${user.id}_ticket`, canal.id);
 
-        // LOG BONITO DE ABERTURA
         const canalLog = guild.channels.cache.get(CONFIG.ID_CANAL_LOGS);
         if (canalLog) {
             const embedLog = new EmbedBuilder()
                 .setTitle("✅ Ticket Criado")
                 .setColor("#2ECC71")
                 .addFields(
-                    { name: "👤 Usuário", value: `${user.tag} (${user.id})`, inline: true },
+                    { name: "👤 Usuário", value: `${user.tag}`, inline: true },
                     { name: "📂 Categoria", value: categoria, inline: true }
-                )
-                .setTimestamp();
-
-            const btnIrAoTicket = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setLabel("Ir para o Ticket").setStyle(ButtonStyle.Link).setURL(`https://discord.com/channels/${guild.id}/${canal.id}`)
+                );
+            const btnLink = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setLabel("Ir ao Ticket").setStyle(ButtonStyle.Link).setURL(`https://discord.com/channels/${guild.id}/${canal.id}`)
             );
-
-            canalLog.send({ embeds: [embedLog], components: [btnIrAoTicket] });
+            canalLog.send({ embeds: [embedLog], components: [btnLink] });
         }
 
-        await interaction.reply({ content: `✅ Canal criado: ${canal}`, ephemeral: true });
+        await interaction.reply({ content: `✅ Ticket aberto em ${canal}`, ephemeral: true });
 
         const embedTicket = new EmbedBuilder()
-            .setTitle(`Suporte: ${categoria.toUpperCase()}`)
-            .setDescription(`Olá ${user}, aguarde um <@&${CONFIG.ID_CARGO_STAFF}>.`)
-            .setColor("#5865F2");
+            .setDescription(`Olá ${user}, suporte em breve.`)
+            .setColor("Green");
 
         const btnTicket = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('claim').setLabel('Assumir').setStyle(ButtonStyle.Success).setEmoji('🙋‍♂️'),
-            new ButtonBuilder().setCustomId('close').setLabel('Fechar').setStyle(ButtonStyle.Danger).setEmoji('🔒')
+            new ButtonBuilder().setCustomId('claim').setLabel('Assumir').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId('close').setLabel('Fechar').setStyle(ButtonStyle.Danger)
         );
 
-        await canal.send({ content: `${user} | <@&${CONFIG.ID_CARGO_STAFF}>`, embeds: [embedTicket], components: [btnTicket] });
+        await canal.send({ content: `<@&${CONFIG.ID_CARGO_STAFF}>`, embeds: [embedTicket], components: [btnTicket] });
     }
 
-    // --- BOTÕES (Assumir / Fechar com Transcript) ---
     if (interaction.isButton()) {
         const canalLog = guild.channels.cache.get(CONFIG.ID_CANAL_LOGS);
 
         if (customId === 'claim') {
-            await interaction.reply(`🙋‍♂️ ${user} assumiu o atendimento.`);
-            if (canalLog) {
-                const embedClaim = new EmbedBuilder()
-                    .setDescription(`👤 **${user.tag}** assumiu o ticket <#${channel.id}>`)
-                    .setColor("#F1C40F");
-                canalLog.send({ embeds: [embedClaim] });
-            }
+            await interaction.reply(`🙋‍♂️ ${user} assumiu este ticket.`);
         }
 
         if (customId === 'close') {
-            await interaction.reply("🔒 Gerando histórico e fechando...");
-
-            // --- GERAÇÃO DE TRANSCRIPT ---
+            await interaction.reply("🔒 Gerando transcript e fechando...");
             const mensagens = await channel.messages.fetch({ limit: 100 });
-            let transcript = `HISTÓRICO DO TICKET: #${channel.name}\n\n`;
-            mensagens.reverse().forEach(m => {
-                transcript += `[${m.createdAt.toLocaleString()}] ${m.author.tag}: ${m.content}\n`;
-            });
+            let transcript = mensagens.reverse().map(m => `[${m.createdAt.toLocaleString()}] ${m.author.tag}: ${m.content}`).join('\n');
 
             if (canalLog) {
                 const buffer = Buffer.from(transcript, 'utf-8');
-                const embedClose = new EmbedBuilder()
-                    .setTitle("🔒 Ticket Encerrado")
-                    .addFields(
-                        { name: "Canal", value: `#${channel.name}`, inline: true },
-                        { name: "Fechado por", value: user.tag, inline: true }
-                    )
-                    .setColor("#E74C3C")
-                    .setTimestamp();
-
-                await canalLog.send({ 
-                    embeds: [embedClose], 
+                canalLog.send({ 
+                    content: `🔒 Ticket #${channel.name} fechado por ${user.tag}`,
                     files: [{ attachment: buffer, name: `transcript-${channel.name}.txt` }] 
                 });
             }
-
             setTimeout(() => channel.delete().catch(() => {}), 5000);
         }
     }
