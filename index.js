@@ -1,28 +1,23 @@
-const express = require('express');
-const cors = require('cors');
-const app = express();
-
-app.use(cors());
-
-// Rota para o seu site (GitHub Pages) buscar dados
-app.get('/api/stats', (req, res) => {
-    res.json({
-        membros: client.guilds.cache.reduce((a, g) => a + g.memberCount, 0) || 0,
-        ticketsAbertos: client.channels.cache.filter(c => c.name.includes('-')).size || 0,
-        online: true
-    });
-});
-
-app.get('/', (req, res) => res.send('Bot Premium Online!'));
-app.listen(process.env.PORT || 3000);
-
 const { 
     Client, GatewayIntentBits, Partials, EmbedBuilder, 
     ActionRowBuilder, ButtonBuilder, ButtonStyle, 
     ChannelType, PermissionFlagsBits, StringSelectMenuBuilder 
 } = require('discord.js');
+const express = require('express');
+const cors = require('cors');
 const { QuickDB } = require("quick.db");
+
+const app = express();
 const db = new QuickDB();
+app.use(cors());
+
+// --- CONFIGURAÇÃO (AJUSTE SEUS IDs AQUI) ---
+const CONFIG = {
+    TOKEN: process.env.TOKEN,
+    ID_CATEGORIA_TICKETS: "1487944633899286538",
+    ID_CARGO_STAFF: "1491553558405840898",
+    ID_CANAL_LOGS: "1491553429288521758"
+};
 
 const client = new Client({
     intents: [
@@ -34,53 +29,83 @@ const client = new Client({
     partials: [Partials.Channel]
 });
 
-const CONFIG = {
-    TOKEN: process.env.TOKEN,
-    ID_CATEGORIA_TICKETS: "1487944633899286538",
-    ID_CARGO_STAFF: "1491553558405840898",
-    ID_CANAL_LOGS: "1491553429288521758"
-};
+// --- API PARA O SEU SITE ---
+app.get('/api/stats', (req, res) => {
+    res.json({
+        membros: client.guilds.cache.reduce((a, g) => a + g.memberCount, 0) || 0,
+        ticketsAbertos: client.channels.cache.filter(c => c.name.includes('ticket-')).size || 0,
+        ping: Math.round(client.ws.ping),
+        online: true
+    });
+});
 
+app.get('/', (req, res) => res.send('Bot Premium Online!'));
+app.listen(process.env.PORT || 3000);
+
+// --- QUANDO O BOT LIGA ---
 client.once('ready', () => {
-    console.log(`🚀 Bot e API Online: ${client.user.tag}`);
+    console.log(`🚀 Logado como ${client.user.tag}`);
+    
+    // Registra todos os comandos de uma vez
     client.application.commands.set([
         { name: 'setup-ticket', description: 'Envia o painel de tickets' },
-        { name: 'limpar', description: 'Limpa o chat', options: [{ name: 'qtd', type: 4, description: 'Quantidade', required: true }] }
+        { name: 'userinfo', description: 'Mostra info de um usuário', options: [{ name: 'usuario', type: 6, required: false }] },
+        { name: 'serverinfo', description: 'Mostra info do servidor' },
+        { name: 'limpar', description: 'Limpa mensagens', options: [{ name: 'qtd', type: 4, required: true }] }
     ]);
 });
 
+// --- TRATAMENTO DE COMANDOS E INTERAÇÕES ---
 client.on('interactionCreate', async interaction => {
-    const { guild, user, channel, customId } = interaction;
+    const { guild, user, channel, customId, commandName, options } = interaction;
 
-    if (interaction.isChatInputCommand() && interaction.commandName === 'setup-ticket') {
-        const embed = new EmbedBuilder()
-            .setTitle("🎫 Central de Suporte")
-            .setDescription("Selecione uma categoria abaixo no menu:")
-            .setColor("#5865F2");
-
-        const menu = new ActionRowBuilder().addComponents(
-            new StringSelectMenuBuilder()
-                .setCustomId('menu_ticket')
-                .setPlaceholder('Escolha o motivo...')
-                .addOptions([
-                    { label: 'Dúvidas', value: 'duvidas', emoji: '💡' },
-                    { label: 'Financeiro', value: 'financeiro', emoji: '💸' },
-                    { label: 'Denúncia', value: 'denuncia', emoji: '🚫' },
-                ])
-        );
-        return interaction.reply({ embeds: [embed], components: [menu] });
-    }
-
-    if (interaction.isStringSelectMenu() && customId === 'menu_ticket') {
-        const categoria = interaction.values[0];
+    // 1. COMANDOS DE SLASH (/)
+    if (interaction.isChatInputCommand()) {
         
-        const ticketAtivo = await db.get(`user_${user.id}_ticket`);
-        if (ticketAtivo && guild.channels.cache.has(ticketAtivo)) {
-            return interaction.reply({ content: `❌ Você já tem um ticket: <#${ticketAtivo}>`, ephemeral: true });
+        if (commandName === 'setup-ticket') {
+            const embed = new EmbedBuilder()
+                .setTitle("🎫 Central de Suporte")
+                .setDescription("Selecione uma categoria para abrir um ticket.")
+                .setColor("#5865F2");
+
+            const menu = new ActionRowBuilder().addComponents(
+                new StringSelectMenuBuilder()
+                    .setCustomId('menu_ticket')
+                    .setPlaceholder('Escolha o motivo...')
+                    .addOptions([
+                        { label: 'Suporte', value: 'suporte', emoji: '🛠️' },
+                        { label: 'Financeiro', value: 'financeiro', emoji: '💸' }
+                    ])
+            );
+            return interaction.reply({ embeds: [embed], components: [menu] });
         }
 
+        if (commandName === 'userinfo') {
+            const alvo = options.getUser('usuario') || user;
+            const membro = guild.members.cache.get(alvo.id);
+            const embed = new EmbedBuilder()
+                .setTitle(`👤 Info de ${alvo.username}`)
+                .setThumbnail(alvo.displayAvatarURL())
+                .setColor("Blue")
+                .addFields(
+                    { name: '🆔 ID', value: `\`${alvo.id}\``, inline: true },
+                    { name: '📅 Criado', value: `<t:${Math.floor(alvo.createdTimestamp / 1000)}:R>`, inline: true }
+                );
+            return interaction.reply({ embeds: [embed] });
+        }
+
+        if (commandName === 'limpar') {
+            if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) return interaction.reply("Sem permissão.");
+            const qtd = options.getInteger('qtd');
+            await channel.bulkDelete(qtd > 100 ? 100 : qtd);
+            return interaction.reply({ content: `✅ Limpei ${qtd} mensagens.`, ephemeral: true });
+        }
+    }
+
+    // 2. LÓGICA DO TICKET (MENU E BOTÕES)
+    if (interaction.isStringSelectMenu() && customId === 'menu_ticket') {
         const canal = await guild.channels.create({
-            name: `${categoria}-${user.username}`,
+            name: `ticket-${user.username}`,
             type: ChannelType.GuildText,
             parent: CONFIG.ID_CATEGORIA_TICKETS,
             permissionOverwrites: [
@@ -90,58 +115,17 @@ client.on('interactionCreate', async interaction => {
             ],
         });
 
-        await db.set(`user_${user.id}_ticket`, canal.id);
-
-        const canalLog = guild.channels.cache.get(CONFIG.ID_CANAL_LOGS);
-        if (canalLog) {
-            const embedLog = new EmbedBuilder()
-                .setTitle("✅ Ticket Criado")
-                .setColor("#2ECC71")
-                .addFields(
-                    { name: "👤 Usuário", value: `${user.tag}`, inline: true },
-                    { name: "📂 Categoria", value: categoria, inline: true }
-                );
-            const btnLink = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setLabel("Ir ao Ticket").setStyle(ButtonStyle.Link).setURL(`https://discord.com/channels/${guild.id}/${canal.id}`)
-            );
-            canalLog.send({ embeds: [embedLog], components: [btnLink] });
-        }
-
-        await interaction.reply({ content: `✅ Ticket aberto em ${canal}`, ephemeral: true });
-
-        const embedTicket = new EmbedBuilder()
-            .setDescription(`Olá ${user}, suporte em breve.`)
-            .setColor("Green");
-
-        const btnTicket = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('claim').setLabel('Assumir').setStyle(ButtonStyle.Success),
-            new ButtonBuilder().setCustomId('close').setLabel('Fechar').setStyle(ButtonStyle.Danger)
+        const btn = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('fechar_ticket').setLabel('Fechar').setStyle(ButtonStyle.Danger)
         );
 
-        await canal.send({ content: `<@&${CONFIG.ID_CARGO_STAFF}>`, embeds: [embedTicket], components: [btnTicket] });
+        await canal.send({ content: `Olá ${user}, aguarde um <@&${CONFIG.ID_CARGO_STAFF}>.`, components: [btn] });
+        return interaction.reply({ content: `Ticket criado: ${canal}`, ephemeral: true });
     }
 
-    if (interaction.isButton()) {
-        const canalLog = guild.channels.cache.get(CONFIG.ID_CANAL_LOGS);
-
-        if (customId === 'claim') {
-            await interaction.reply(`🙋‍♂️ ${user} assumiu este ticket.`);
-        }
-
-        if (customId === 'close') {
-            await interaction.reply("🔒 Gerando transcript e fechando...");
-            const mensagens = await channel.messages.fetch({ limit: 100 });
-            let transcript = mensagens.reverse().map(m => `[${m.createdAt.toLocaleString()}] ${m.author.tag}: ${m.content}`).join('\n');
-
-            if (canalLog) {
-                const buffer = Buffer.from(transcript, 'utf-8');
-                canalLog.send({ 
-                    content: `🔒 Ticket #${channel.name} fechado por ${user.tag}`,
-                    files: [{ attachment: buffer, name: `transcript-${channel.name}.txt` }] 
-                });
-            }
-            setTimeout(() => channel.delete().catch(() => {}), 5000);
-        }
+    if (interaction.isButton() && customId === 'fechar_ticket') {
+        await interaction.reply("Fechando em 5 segundos...");
+        setTimeout(() => channel.delete(), 5000);
     }
 });
 
