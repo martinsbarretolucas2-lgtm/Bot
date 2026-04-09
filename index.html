@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard do Bot</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #2f3136; color: white; text-align: center; }
+        .card { background: #36393f; padding: 20px; border-radius: 10px; display: inline-block; margin: 10px; min-width: 200px; }
+        h1 { color: #5865f2; }
+    </style>
+</head>
+<body>
+    <h1>Dollar Ticket Dashboard</h1>
+    <div id="stats">
+        <div class="card"><h3>Membros</h3><p id="membros">Carregando...</p></div>
+        <div class="card"><h3>Tickets Ativos</h3><p id="tickets">Carregando...</p></div>
+    </div>
+
+    <script>
+        // Substitua pela sua URL do Render
+        const API_URL = "https://bot-ticket-cvbc.onrender.com/api/stats";
+
+        async function fetchStats() {
+            try {
+                const response = await fetch(API_URL);
+                const data = await response.json();
+                document.getElementById('membros').innerText = data.membros;
+                document.getElementById('tickets').innerText = data.ticketsAbertos;
+            } catch (e) {
+                console.error("Erro ao conectar com o Bot");
+            }
+        }
+        setInterval(fetchStats, 5000); // Atualiza a cada 5 segundos
+        fetchStats();
+    </script>
+</body>
+</html>
