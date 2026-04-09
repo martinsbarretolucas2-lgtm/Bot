@@ -40,3 +40,4 @@ client.once('ready', () => {
 client.login(process.env.TOKEN).catch(err => {
     console.error("❌ Erro no Token! Verifique se a variável TOKEN está certa no Render.");
 });
+client.login(process.env.TOKEN);
