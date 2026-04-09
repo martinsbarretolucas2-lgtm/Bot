@@ -1,3 +1,15 @@
+const cors = require('cors'); // Você precisará dar 'npm install cors'
+app.use(cors());
+
+// Rota para pegar estatísticas do servidor para o seu site
+app.get('/api/stats', (req, res) => {
+    res.json({
+        membros: client.guilds.cache.reduce((a, g) => a + g.memberCount, 0),
+        ticketsAbertos: client.channels.cache.filter(c => c.name.startsWith('ticket-')).size,
+        status: "Online"
+    });
+});
+
 const express = require('express');
 const app = express();
 app.get('/', (req, res) => res.send('Bot Premium com Transcript Online!'));
