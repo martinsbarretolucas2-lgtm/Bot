@@ -48,7 +48,7 @@ client.once('ready', () => {
     
     // Registra todos os comandos de uma vez
     client.application.commands.set([
-        { name: 'setup-ticket', description: 'Envia o painel de tickets' },
+        { name: 'enviar-painel', description: 'Envia o painel de tickets' },
         { name: 'userinfo', description: 'Mostra info de um usuário', options: [{ name: 'usuario', type: 6, required: false }] },
         { name: 'serverinfo', description: 'Mostra info do servidor' },
         { name: 'limpar', description: 'Limpa mensagens', options: [{ name: 'qtd', type: 4, required: true }] }
