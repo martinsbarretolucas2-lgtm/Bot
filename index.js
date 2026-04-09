@@ -5,9 +5,10 @@ const app = express();
 app.use(cors());
 
 // Rota para o seu site (GitHub Pages) buscar dados
-app.get('/api/stats', (req, res) => {    res.json({
-        membros: client.guilds.cache.reduce((a, g) => a + g.memberCount, 0),
-        ping: client.ws.ping,
+app.get('/api/stats', (req, res) => {
+    res.json({
+        membros: client.guilds.cache.reduce((a, g) => a + g.memberCount, 0) || 0,
+        ticketsAbertos: client.channels.cache.filter(c => c.name.includes('-')).size || 0,
         online: true
     });
 });
