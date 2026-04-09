@@ -1,6 +1,6 @@
 const express = require('express');
 const app = express();
-app.get('/', (req, res) => res.send('Bot Premium Online!'));
+app.get('/', (req, res) => res.send('Bot Premium com Transcript Online!'));
 app.listen(process.env.PORT || 3000);
 
 const { 
@@ -29,113 +29,44 @@ const CONFIG = {
 };
 
 client.once('ready', () => {
-    console.log(`🤖 Bot Full operante: ${client.user.tag}`);
-    
-    // REGISTRO DE TODOS OS COMANDOS
+    console.log(`🚀 Sistema de Logs e Transcripts Ativo em ${client.user.tag}`);
     client.application.commands.set([
         { name: 'setup-ticket', description: 'Envia o painel de tickets' },
-        { name: 'ping', description: 'Latência do bot' },
-        { name: 'limpar', description: 'Limpa mensagens', options: [{ name: 'qtd', type: 4, description: 'Quantidade', required: true }] },
-        { name: 'avatar', description: 'Veja o avatar de alguém', options: [{ name: 'user', type: 6, description: 'Selecione o usuário', required: true }] },
-        { name: 'serverinfo', description: 'Informações do servidor' },
-        { name: 'lock', description: 'Tranca o canal atual' },
-        { name: 'unlock', description: 'Destranca o canal atual' },
-        { name: 'slowmode', description: 'Define modo lento', options: [{ name: 'tempo', type: 4, description: 'Tempo em segundos', required: true }] },
-        { name: 'setnick', description: 'Muda o nick de alguém', options: [
-            { name: 'user', type: 6, description: 'Usuário', required: true },
-            { name: 'nick', type: 3, description: 'Novo apelido', required: true }
-        ]}
+        { name: 'limpar', description: 'Limpa o chat', options: [{ name: 'qtd', type: 4, description: 'Quantidade', required: true }] }
     ]);
 });
 
 client.on('interactionCreate', async interaction => {
-    if (interaction.isChatInputCommand()) {
-        const { commandName, options, guild, channel, member } = interaction;
+    const { guild, user, channel, customId } = interaction;
 
-        // --- INFO COMANDOS ---
-        if (commandName === 'ping') return interaction.reply(`🏓 **${client.ws.ping}ms**`);
+    // --- SETUP TICKET ---
+    if (interaction.isChatInputCommand() && interaction.commandName === 'setup-ticket') {
+        const embed = new EmbedBuilder()
+            .setTitle("🎫 Central de Suporte")
+            .setDescription("Selecione uma categoria abaixo para iniciar o atendimento.")
+            .setColor("#5865F2")
+            .setFooter({ text: guild.name, iconURL: guild.iconURL() });
 
-        if (commandName === 'avatar') {
-            const user = options.getUser('user');
-            const embed = new EmbedBuilder()
-                .setTitle(`🖼️ Avatar de ${user.username}`)
-                .setImage(user.displayAvatarURL({ size: 1024, dynamic: true }))
-                .setColor("Random");
-            return interaction.reply({ embeds: [embed] });
-        }
-
-        if (commandName === 'serverinfo') {
-            const embed = new EmbedBuilder()
-                .setTitle(`🏰 ${guild.name}`)
-                .addFields(
-                    { name: '🆔 ID', value: guild.id, inline: true },
-                    { name: '👥 Membros', value: `${guild.memberCount}`, inline: true },
-                    { name: '📅 Criado em', value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:F>`, inline: false }
-                )
-                .setThumbnail(guild.iconURL())
-                .setColor("Blue");
-            return interaction.reply({ embeds: [embed] });
-        }
-
-        // --- MODERAÇÃO ---
-        if (commandName === 'lock') {
-            if (!member.permissions.has(PermissionFlagsBits.ManageChannels)) return interaction.reply({ content: "Sem permissão.", ephemeral: true });
-            await channel.permissionOverwrites.edit(guild.id, { SendMessages: false });
-            return interaction.reply("🔒 Este canal foi trancado.");
-        }
-
-        if (commandName === 'unlock') {
-            if (!member.permissions.has(PermissionFlagsBits.ManageChannels)) return interaction.reply({ content: "Sem permissão.", ephemeral: true });
-            await channel.permissionOverwrites.edit(guild.id, { SendMessages: true });
-            return interaction.reply("🔓 Este canal foi destrancado.");
-        }
-
-        if (commandName === 'slowmode') {
-            const tempo = options.getInteger('tempo');
-            await channel.setRateLimitPerUser(tempo);
-            return interaction.reply(`⏳ Modo lento definido para ${tempo} segundos.`);
-        }
-
-        if (commandName === 'setnick') {
-            const alvo = options.getMember('user');
-            const nick = options.getString('nick');
-            await alvo.setNickname(nick);
-            return interaction.reply(`✅ Nick de ${alvo} alterado para **${nick}**.`);
-        }
-
-        if (commandName === 'limpar') {
-            const qtd = options.getInteger('qtd');
-            await channel.bulkDelete(qtd > 100 ? 100 : qtd);
-            return interaction.reply({ content: `🧹 ${qtd} mensagens limpas.`, ephemeral: true });
-        }
-
-        if (commandName === 'setup-ticket') {
-            const embed = new EmbedBuilder()
-                .setTitle("🎫 Central de Suporte")
-                .setDescription("Escolha uma opção no menu abaixo para abrir um ticket.")
-                .setColor("#2B2D31");
-            const menu = new ActionRowBuilder().addComponents(
-                new StringSelectMenuBuilder()
-                    .setCustomId('menu_ticket')
-                    .setPlaceholder('Selecione uma categoria...')
-                    .addOptions([
-                        { label: 'Dúvidas', value: 'duvidas', emoji: '💡' },
-                        { label: 'Financeiro', value: 'financeiro', emoji: '💰' },
-                        { label: 'Denúncia', value: 'denuncia', emoji: '🚫' },
-                    ])
-            );
-            return interaction.reply({ embeds: [embed], components: [menu] });
-        }
+        const menu = new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId('menu_ticket')
+                .setPlaceholder('Escolha o motivo do contato...')
+                .addOptions([
+                    { label: 'Dúvidas', value: 'duvidas', emoji: '💡' },
+                    { label: 'Financeiro', value: 'financeiro', emoji: '💸' },
+                    { label: 'Denúncia', value: 'denuncia', emoji: '🚫' },
+                ])
+        );
+        return interaction.reply({ embeds: [embed], components: [menu] });
     }
 
-    // --- LÓGICA DO MENU DE TICKETS ---
-    if (interaction.isStringSelectMenu() && interaction.customId === 'menu_ticket') {
+    // --- ABRIR TICKET (Lógica com Botão de Ir ao Ticket) ---
+    if (interaction.isStringSelectMenu() && customId === 'menu_ticket') {
         const categoria = interaction.values[0];
-        const { guild, user } = interaction;
-
+        
         const ticketAtivo = await db.get(`user_${user.id}_ticket`);
         if (ticketAtivo && guild.channels.cache.has(ticketAtivo)) {
-            return interaction.reply({ content: `❌ Você já tem um ticket: <#${ticketAtivo}>`, ephemeral: true });
+            return interaction.reply({ content: `❌ Você já possui um ticket: <#${ticketAtivo}>`, ephemeral: true });
         }
 
         const canal = await guild.channels.create({
@@ -150,38 +81,83 @@ client.on('interactionCreate', async interaction => {
         });
 
         await db.set(`user_${user.id}_ticket`, canal.id);
-        await interaction.reply({ content: `Ticket criado: ${canal}`, ephemeral: true });
 
-        // LOG DE ABERTURA
+        // LOG BONITO DE ABERTURA
         const canalLog = guild.channels.cache.get(CONFIG.ID_CANAL_LOGS);
-        if (canalLog) canalLog.send(`✅ **Novo Ticket:** ${user.tag} abriu em **${categoria}**`);
+        if (canalLog) {
+            const embedLog = new EmbedBuilder()
+                .setTitle("✅ Ticket Criado")
+                .setColor("#2ECC71")
+                .addFields(
+                    { name: "👤 Usuário", value: `${user.tag} (${user.id})`, inline: true },
+                    { name: "📂 Categoria", value: categoria, inline: true }
+                )
+                .setTimestamp();
+
+            const btnIrAoTicket = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setLabel("Ir para o Ticket").setStyle(ButtonStyle.Link).setURL(`https://discord.com/channels/${guild.id}/${canal.id}`)
+            );
+
+            canalLog.send({ embeds: [embedLog], components: [btnIrAoTicket] });
+        }
+
+        await interaction.reply({ content: `✅ Canal criado: ${canal}`, ephemeral: true });
 
         const embedTicket = new EmbedBuilder()
-            .setTitle(`Suporte: ${categoria}`)
+            .setTitle(`Suporte: ${categoria.toUpperCase()}`)
             .setDescription(`Olá ${user}, aguarde um <@&${CONFIG.ID_CARGO_STAFF}>.`)
-            .setColor("Green");
+            .setColor("#5865F2");
 
-        const btn = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('claim').setLabel('Assumir').setStyle(ButtonStyle.Success),
-            new ButtonBuilder().setCustomId('close').setLabel('Fechar').setStyle(ButtonStyle.Danger)
+        const btnTicket = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('claim').setLabel('Assumir').setStyle(ButtonStyle.Success).setEmoji('🙋‍♂️'),
+            new ButtonBuilder().setCustomId('close').setLabel('Fechar').setStyle(ButtonStyle.Danger).setEmoji('🔒')
         );
-        await canal.send({ content: `<@&${CONFIG.ID_CARGO_STAFF}>`, embeds: [embedTicket], components: [btn] });
+
+        await canal.send({ content: `${user} | <@&${CONFIG.ID_CARGO_STAFF}>`, embeds: [embedTicket], components: [btnTicket] });
     }
 
-    // --- BOTÕES ---
+    // --- BOTÕES (Assumir / Fechar com Transcript) ---
     if (interaction.isButton()) {
-        const { customId, channel, user, guild } = interaction;
         const canalLog = guild.channels.cache.get(CONFIG.ID_CANAL_LOGS);
 
         if (customId === 'claim') {
-            await interaction.reply(`🙋‍♂️ ${user} assumiu o ticket.`);
-            if (canalLog) canalLog.send(`🙋‍♂️ **Ticket Assumido:** ${user.tag} em ${channel}`);
+            await interaction.reply(`🙋‍♂️ ${user} assumiu o atendimento.`);
+            if (canalLog) {
+                const embedClaim = new EmbedBuilder()
+                    .setDescription(`👤 **${user.tag}** assumiu o ticket <#${channel.id}>`)
+                    .setColor("#F1C40F");
+                canalLog.send({ embeds: [embedClaim] });
+            }
         }
 
         if (customId === 'close') {
-            await interaction.reply("🔒 Fechando...");
-            if (canalLog) canalLog.send(`🔒 **Ticket Fechado:** #${channel.name} por ${user.tag}`);
-            setTimeout(() => channel.delete(), 5000);
+            await interaction.reply("🔒 Gerando histórico e fechando...");
+
+            // --- GERAÇÃO DE TRANSCRIPT ---
+            const mensagens = await channel.messages.fetch({ limit: 100 });
+            let transcript = `HISTÓRICO DO TICKET: #${channel.name}\n\n`;
+            mensagens.reverse().forEach(m => {
+                transcript += `[${m.createdAt.toLocaleString()}] ${m.author.tag}: ${m.content}\n`;
+            });
+
+            if (canalLog) {
+                const buffer = Buffer.from(transcript, 'utf-8');
+                const embedClose = new EmbedBuilder()
+                    .setTitle("🔒 Ticket Encerrado")
+                    .addFields(
+                        { name: "Canal", value: `#${channel.name}`, inline: true },
+                        { name: "Fechado por", value: user.tag, inline: true }
+                    )
+                    .setColor("#E74C3C")
+                    .setTimestamp();
+
+                await canalLog.send({ 
+                    embeds: [embedClose], 
+                    files: [{ attachment: buffer, name: `transcript-${channel.name}.txt` }] 
+                });
+            }
+
+            setTimeout(() => channel.delete().catch(() => {}), 5000);
         }
     }
 });
