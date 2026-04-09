@@ -46,6 +46,29 @@ app.get('/api/stats', (req, res) => {
     }
 });
 
+// Adicione isso logo abaixo da rota app.get('/api/stats', ...)
+
+// Rota para enviar o painel de ticket pelo site
+app.post('/api/action/setup', (req, res) => {
+    const guild = client.guilds.cache.first(); // Pega o primeiro servidor que o bot está
+    const channel = guild.channels.cache.find(c => c.type === 0); // Tenta achar um canal de texto
+    
+    if (channel) {
+        // Aqui você chamaria a função que envia o embed do ticket
+        // (A mesma lógica do comando /setup que criamos antes)
+        res.json({ success: true, message: "Painel enviado com sucesso!" });
+    } else {
+        res.status(500).json({ success: false, message: "Canal não encontrado" });
+    }
+});
+
+// Rota para mudar o status da moderação
+let moderacaoAtiva = true;
+app.post('/api/action/toggle-mod', (req, res) => {
+    moderacaoAtiva = !moderacaoAtiva;
+    res.json({ success: true, status: moderacaoAtiva });
+});
+
 app.listen(process.env.PORT || 3000, () => console.log("✨ API de Elite Online"));
 
 // --- 🛡️ SISTEMA DE PROTEÇÃO (LORRITA STYLE) ---
