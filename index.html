@@ -1,16 +1,44 @@
-const API_URL = "https://bot-ticket-cvbc.onrender.com/api/stats";
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dollar Ticket | Dashboard</title>
+    <style>
+        body { background: #0f0f13; color: white; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { text-align: center; background: #1a1a24; padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #5865F2; }
+        h1 { color: #5865F2; margin-bottom: 30px; }
+        .stats { display: flex; gap: 20px; }
+        .card { background: #232333; padding: 20px; border-radius: 15px; min-width: 120px; border-bottom: 4px solid #5865F2; }
+        .number { font-size: 2em; font-weight: bold; display: block; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Dollar Ticket Dashboard</h1>
+        <div class="stats">
+            <div class="card">Membros <span id="membros" class="number">...</span></div>
+            <div class="card">Tickets <span id="tickets" class="number">...</span></div>
+            <div class="card">Ping <span id="ping" class="number">...</span></div>
+        </div>
+    </div>
 
-async function fetchStats() {
-    try {
-        const response = await fetch(API_URL);
-        const data = await response.json();
-        
-        // Isso preenche os números na tela
-        document.getElementById('membros').innerText = data.membros;
-        document.getElementById('tickets').innerText = data.ticketsAbertos;
-        document.getElementById('ping').innerText = data.ping + "ms"; 
-    } catch (e) {
-        console.error("Erro ao conectar com o Bot");
-    }
-}
-setInterval(fetchStats, 5000); // Atualiza a cada 5 segundos
+    <script>
+        const API_URL = "https://bot-ticket-cvbc.onrender.com/api/stats";
+
+        async function fetchStats() {
+            try {
+                const response = await fetch(API_URL);
+                const data = await response.json();
+                document.getElementById('membros').innerText = data.membros;
+                document.getElementById('tickets').innerText = data.ticketsAbertos;
+                document.getElementById('ping').innerText = data.ping + "ms";
+            } catch (e) {
+                console.error("Erro ao conectar com o Bot");
+            }
+        }
+        setInterval(fetchStats, 5000);
+        fetchStats();
+    </script>
+</body>
+</html>
