@@ -5,8 +5,7 @@ const app = express();
 app.use(cors());
 
 // Rota para o seu site (GitHub Pages) buscar dados
-app.get('/status', (req, res) => {
-    res.json({
+app.get('/api/stats', (req, res) => {    res.json({
         membros: client.guilds.cache.reduce((a, g) => a + g.memberCount, 0),
         ping: client.ws.ping,
         online: true
